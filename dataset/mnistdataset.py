@@ -20,12 +20,14 @@ class MNISTDataset(Dataset):
         self.data = pd.read_csv(path)
         self.train = train
         self.transform = transform
+        self.class_num = 10
         
         if self.train:
-            self.X = np.reshape(self.data.iloc[:,1:].values, (-1, 28, 28))
-            self.y = self.data['label'].values
+            self.X = np.reshape(self.data.iloc[:,1:].values/255, (-1,28,28))
+            self.y = np.eye(self.class_num)[self.data['label'].values]
+            #self.y = self.data['label'].values
         else:
-            self.X = np.reshape(self.data.values, (-1, 28, 28))
+            self.X = np.reshape(self.data.values/255, (-1,28,28))
 
     def __len__(self):
         return self.X.shape[0]
@@ -34,9 +36,9 @@ class MNISTDataset(Dataset):
         x = self.X[idx]
         if self.train:
             y = self.y[idx]
-            ret = {'img': x, 'label': y}
+            ret = self.transform(x), y
         else:
-            ret = {'img': x}
+            ret = self.transform(x)
         return ret
 
 if __name__ == '__main__':
