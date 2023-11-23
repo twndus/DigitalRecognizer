@@ -8,11 +8,13 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+import wandb
+
 from dataset.mnistdataset import MNISTDataset
 from model.model import SimpleMLP
 
 # fix random seeds for reproducibility
-SEED = 42#20231118 
+SEED = 20231118 
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
@@ -35,12 +37,18 @@ def acc(model, dataloader, datalen, device):
             correct = (y_pred == y_label).sum().item()
             tot_corr += correct
 
-    print(f'acc: {tot_corr/datalen}')
+    return tot_corr/datalen
 
 def main():
     
     ## connection with wandb
-    #run = wandb.init(project='digital-recognizer', config={"learning_rate": })
+    EPOCHS = 10
+    LEARNING_RATE = 1e-3
+    BATCH_SIZE = 32
+
+    config = {"epochs": EPOCHS, "batch_size": BATCH_SIZE, 
+        "learning_rate": LEARNING_RATE}
+    run = wandb.init(project='digital-recognizer', config=config)
 
     # dataset
     mnist_train_data = MNISTDataset(path='data/train.csv', train=True, 
@@ -49,14 +57,12 @@ def main():
         transform=transforms.ToTensor())
 
     # dataloader
-    train_dataloader = DataLoader(dataset=mnist_train_data, batch_size=32, 
-        shuffle=True)
-    test_dataloader = DataLoader(dataset=mnist_test_data, batch_size=32, 
-        shuffle=True)
+    train_dataloader = DataLoader(dataset=mnist_train_data, 
+        batch_size=BATCH_SIZE, shuffle=True)
+    test_dataloader = DataLoader(dataset=mnist_test_data, 
+        batch_size=BATCH_SIZE, shuffle=True)
 
     # model train
-    epochs = 10
-    learning_rate = 1e-3
     device = torch.device('mps')
 
     model = SimpleMLP().to(device)
@@ -64,9 +70,9 @@ def main():
     model.train()
 
     loss_fn = nn.CrossEntropyLoss()
-    optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    for e in range(epochs):
+    for e in range(EPOCHS):
         tot_loss = 0
         for b, (data, label) in enumerate(train_dataloader):
 
@@ -81,8 +87,9 @@ def main():
             tot_loss += loss.item()
             #print(f'[step {e}-{b}] loss: {loss.item()}')
 
-        print(f'[step {e}] loss: {tot_loss}')
-        acc(model, train_dataloader, len(mnist_train_data), device)
+        train_acc = acc(model, train_dataloader, len(mnist_train_data), device)
+        print(f'[step {e}] loss: {tot_loss}, acc: {train_acc}')
+        wandb.log({'accuracy': train_acc, 'loss': loss})
         
 if __name__ == '__main__':
     main()
