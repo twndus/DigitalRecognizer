@@ -1,6 +1,8 @@
 '''
 train.py
 '''
+import os, random, string 
+
 import numpy as np
 
 import torch, torchvision
@@ -39,16 +41,17 @@ def acc(model, dataloader, datalen, device):
 
     return tot_corr/datalen
 
-def main():
+def main(monitor, model_save, model_save_path):
     
     ## connection with wandb
     EPOCHS = 10
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 32
 
-    config = {"epochs": EPOCHS, "batch_size": BATCH_SIZE, 
-        "learning_rate": LEARNING_RATE}
-    run = wandb.init(project='digital-recognizer', config=config)
+    if monitor:
+        config = {"epochs": EPOCHS, "batch_size": BATCH_SIZE, 
+            "learning_rate": LEARNING_RATE}
+        run = wandb.init(project='digital-recognizer', config=config)
 
     # dataset
     mnist_train_data = MNISTDataset(path='data/train.csv', train=True, 
@@ -79,17 +82,27 @@ def main():
             data, label = data.float().to(device), label.float().to(device)
             pred = model.forward(data.view((-1, 28*28)))
 
-            optim.zero_grad()
-            loss = loss_fn(pred, label)
-            loss.backward()
-            optim.step()
+            optim.zero_grad() # reset gradients to avoid confusing.
+            loss = loss_fn(pred, label) # compute loss with logit and 1hot targe
+            loss.backward() # compute partial derivatives
+            optim.step() # update with optimizer
 
             tot_loss += loss.item()
-            #print(f'[step {e}-{b}] loss: {loss.item()}')
 
         train_acc = acc(model, train_dataloader, len(mnist_train_data), device)
         print(f'[step {e}] loss: {tot_loss}, acc: {train_acc}')
-        wandb.log({'accuracy': train_acc, 'loss': loss})
+
+        if monitor:
+            wandb.log({'accuracy': train_acc, 'loss': loss})
+
+    if model_save:
+        torch.save(model.state_dict(), model_save_path)
         
 if __name__ == '__main__':
-    main()
+    monitor = False
+    model_save = True
+    model_save_dir = './output'
+    modelname = f"mnist-mlp-{''.join(random.sample(string.ascii_lowercase, 5))}.pt"
+    os.makedirs('./output', exist_ok=True)
+    print(os.path.join(model_save_dir, modelname))
+    main(monitor, model_save, os.path.join(model_save_dir, modelname))
