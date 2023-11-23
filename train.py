@@ -7,7 +7,7 @@ import numpy as np
 
 import torch, torchvision
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 
 import wandb
@@ -58,9 +58,14 @@ def main(monitor, model_save, model_save_path):
         transform=transforms.ToTensor())
     mnist_test_data = MNISTDataset(path='data/test.csv', train=False, 
         transform=transforms.ToTensor())
+    
+    # split train to train and val
+    mnist_train_data, mnist_val_data = random_split(mnist_train_data, [.8,.2])
 
     # dataloader
     train_dataloader = DataLoader(dataset=mnist_train_data, 
+        batch_size=BATCH_SIZE, shuffle=True)
+    val_dataloader = DataLoader(dataset=mnist_val_data, 
         batch_size=BATCH_SIZE, shuffle=True)
     test_dataloader = DataLoader(dataset=mnist_test_data, 
         batch_size=BATCH_SIZE, shuffle=True)
@@ -90,17 +95,18 @@ def main(monitor, model_save, model_save_path):
             tot_loss += loss.item()
 
         train_acc = acc(model, train_dataloader, len(mnist_train_data), device)
-        print(f'[step {e}] loss: {tot_loss}, acc: {train_acc}')
+        val_acc = acc(model, val_dataloader, len(mnist_val_data), device)
+        print(f'[step {e}] loss: {tot_loss}, train acc: {train_acc:.4f}, val acc: {val_acc:.4f}')
 
         if monitor:
-            wandb.log({'accuracy': train_acc, 'loss': loss})
+            wandb.log({'train_accuracy': train_acc, 'val_accuracy':val_acc, 'loss': loss})
 
     if model_save:
         torch.save(model.state_dict(), model_save_path)
         
 if __name__ == '__main__':
     monitor = False
-    model_save = True
+    model_save = False#True
     model_save_dir = './output'
     modelname = f"mnist-mlp-{''.join(random.sample(string.ascii_lowercase, 5))}.pt"
     os.makedirs('./output', exist_ok=True)
