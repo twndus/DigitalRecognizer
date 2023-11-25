@@ -22,17 +22,18 @@ torch.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-def acc(model, dataloader, datalen, device):
+def acc(model, dataloader, datalen, device, model_2d):
     # performance
     model.eval()
     
     tot_corr = 0
     with torch.no_grad():
         for data, label in dataloader:
-
             data, label = data.float().to(device), label.float().to(device)
-            #pred = model.forward(data)#.view((-1, 28*28)))
-            pred = model.forward(data.view((-1, 28*28)))
+            if model_2d:
+                pred = model.forward(data)
+            else:
+                pred = model.forward(data.view((-1, 28*28)))
 
             y_pred = torch.argmax(pred,1)
             y_label = torch.argmax(label,1)
@@ -42,7 +43,7 @@ def acc(model, dataloader, datalen, device):
 
     return tot_corr/datalen
 
-def main(monitor, model_save, model_save_path):
+def main(modelname, model_2d, monitor, model_save, model_save_path):
     
     ## connection with wandb
     EPOCHS = 10 
@@ -74,8 +75,13 @@ def main(monitor, model_save, model_save_path):
     # model train
     device = torch.device('mps')
 
-    model = SimpleMLP().to(device)
-    #model = SimpleCNN(hconv_channels=[32, 64]).to(device)
+    if modelname == 'SimpleMLP':
+        model = SimpleMLP().to(device)
+    elif modelname == 'SimpleCNN':
+        model = SimpleCNN(hconv_channels=[32, 64]).to(device)
+    else:
+        raise ValueError(f"{modelname} not implemented. check model/model.py")
+
     model.init_params()
     model.train()
 
@@ -85,10 +91,11 @@ def main(monitor, model_save, model_save_path):
     for e in range(EPOCHS):
         tot_loss = 0
         for b, (data, label) in enumerate(train_dataloader):
-
             data, label = data.float().to(device), label.float().to(device)
-            #pred = model.forward(data)#.view((-1, 28, 28, 1)))
-            pred = model.forward(data.view((-1, 28*28)))
+            if model_2d:
+                pred = model.forward(data)
+            else:
+                pred = model.forward(data.view((-1, 28*28)))
 
             optim.zero_grad() # reset gradients to avoid confusing.
             loss = loss_fn(pred, label) # compute loss with logit and 1hot targe
@@ -97,8 +104,9 @@ def main(monitor, model_save, model_save_path):
 
             tot_loss += loss.item()
 
-        train_acc = acc(model, train_dataloader, len(mnist_train_data), device)
-        val_acc = acc(model, val_dataloader, len(mnist_val_data), device)
+        train_acc = acc(model, train_dataloader, len(mnist_train_data), device,
+            model_2d)
+        val_acc = acc(model, val_dataloader, len(mnist_val_data), device, model_2d)
         print(f'[step {e}] loss: {tot_loss}, train acc: {train_acc:.4f}, val acc: {val_acc:.4f}')
 
         if monitor:
@@ -108,10 +116,25 @@ def main(monitor, model_save, model_save_path):
         torch.save(model.state_dict(), model_save_path)
         
 if __name__ == '__main__':
-    monitor = True#False
+
+    # modelname
+    ##'SimpleMLP', 'SimpleCNN'
+    modelname = 'SimpleCNN'
+    print(f'model: {modelname}')
+    
+    if modelname == 'SimpleMLP':
+        model_2d = False
+    else:
+        model_2d = True
+
+    # wandb monitoring
+    monitor = False#True#False
+
+    # model save
     model_save = False#True
     model_save_dir = './output'
-    modelname = f"mnist-mlp-{''.join(random.sample(string.ascii_lowercase, 5))}.pt"
+    savename = f"mnist-{modelname}-{''.join(random.sample(string.ascii_lowercase, 5))}.pt"
     os.makedirs('./output', exist_ok=True)
-    print(os.path.join(model_save_dir, modelname))
-    main(monitor, model_save, os.path.join(model_save_dir, modelname))
+
+    main(modelname, model_2d, monitor, model_save, 
+         os.path.join(model_save_dir, savename))
