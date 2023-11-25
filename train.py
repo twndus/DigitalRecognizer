@@ -13,7 +13,7 @@ from torchvision import transforms
 import wandb
 
 from dataset.mnistdataset import MNISTDataset
-from model.model import SimpleMLP
+from model.model import SimpleMLP, SimpleCNN
 
 # fix random seeds for reproducibility
 SEED = 20231118 
@@ -31,6 +31,7 @@ def acc(model, dataloader, datalen, device):
         for data, label in dataloader:
 
             data, label = data.float().to(device), label.float().to(device)
+            #pred = model.forward(data)#.view((-1, 28*28)))
             pred = model.forward(data.view((-1, 28*28)))
 
             y_pred = torch.argmax(pred,1)
@@ -44,7 +45,7 @@ def acc(model, dataloader, datalen, device):
 def main(monitor, model_save, model_save_path):
     
     ## connection with wandb
-    EPOCHS = 10
+    EPOCHS = 10 
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 32
 
@@ -74,6 +75,7 @@ def main(monitor, model_save, model_save_path):
     device = torch.device('mps')
 
     model = SimpleMLP().to(device)
+    #model = SimpleCNN(hconv_channels=[32, 64]).to(device)
     model.init_params()
     model.train()
 
@@ -85,6 +87,7 @@ def main(monitor, model_save, model_save_path):
         for b, (data, label) in enumerate(train_dataloader):
 
             data, label = data.float().to(device), label.float().to(device)
+            #pred = model.forward(data)#.view((-1, 28, 28, 1)))
             pred = model.forward(data.view((-1, 28*28)))
 
             optim.zero_grad() # reset gradients to avoid confusing.
@@ -105,7 +108,7 @@ def main(monitor, model_save, model_save_path):
         torch.save(model.state_dict(), model_save_path)
         
 if __name__ == '__main__':
-    monitor = False
+    monitor = True#False
     model_save = False#True
     model_save_dir = './output'
     modelname = f"mnist-mlp-{''.join(random.sample(string.ascii_lowercase, 5))}.pt"
